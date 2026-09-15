@@ -4,6 +4,7 @@ services:
     ports:
       - "3000:3000"
     environment:
+      REQUIRE_LOGIN: ${REQUIRE_LOGIN:-0}
       PORT: "3000"
       WORKER_URL: http://worker:8080
     healthcheck:

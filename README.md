@@ -219,3 +219,17 @@ worker/         Go worker, Dockerfile
 e2e/            Playwright config and tests
 docker-compose.yml
 ```
+
+## 假登入頁（接手示範用）
+
+`GET /login` 是一個假登入頁，任何非空帳密都放行並設 cookie；`POST /logout` 清掉。設環境變數 `REQUIRE_LOGIN=1` 起 api 時，首頁會先轉去 `/login`，用來示範「agent 卡在登入頁，`sandbox_takeover` 請人來輸入帳密」的流程：
+
+```
+sandbox_exec { "id": "<id>", "cmd": "REQUIRE_LOGIN=1 docker compose up -d --build --wait", "cwd": "example-compose-app", "timeoutSec": 600 }
+sandbox_exec { "id": "<id>", "cmd": "DISPLAY=:99 chromium --no-sandbox --kiosk --window-size=1280,800 --user-data-dir=/tmp/chrome http://localhost:3000/", "background": true }
+sandbox_takeover { "id": "<id>", "note": "Please sign in on the demo login page, then hand back." }
+```
+
+## Demo login page (for the takeover walkthrough)
+
+`GET /login` is a fake sign-in page: any non-empty username and password pass and set a cookie; `POST /logout` clears it. Start the api with `REQUIRE_LOGIN=1` and the home page redirects to `/login` first, which is the moment to call `sandbox_takeover` and let a person type the credentials on the live screen.

@@ -59,9 +59,77 @@ app.get('/api/worker', async (_req, res) => {
   }
 });
 
-app.get('/', (_req, res) => {
+// 假登入頁：給接手示範用（人在 takeover 畫面上輸入帳密），任何非空帳密都放行，設一個 cookie 後回首頁。
+const sessions = new Set();
+function loggedIn(req) {
+  const m = /(?:^|;\s*)demo_session=([A-Za-z0-9-]+)/.exec(req.headers.cookie || '');
+  return Boolean(m && sessions.has(m[1]));
+}
+
+app.get('/login', (_req, res) => {
+  res.type('html').send(LOGIN_PAGE);
+});
+
+app.post('/login', express.urlencoded({ extended: false }), (req, res) => {
+  const user = String(req.body?.username || '').trim();
+  const pass = String(req.body?.password || '');
+  if (!user || !pass) {
+    res.status(400).type('html').send(LOGIN_PAGE.replace('<!--error-->', '<p class="error">Username and password are required.</p>'));
+    return;
+  }
+  const id = randomUUID();
+  sessions.add(id);
+  res.setHeader('Set-Cookie', `demo_session=${id}; Path=/; HttpOnly; SameSite=Lax`);
+  res.redirect(303, '/');
+});
+
+app.post('/logout', (req, res) => {
+  const m = /(?:^|;\s*)demo_session=([A-Za-z0-9-]+)/.exec(req.headers.cookie || '');
+  if (m) sessions.delete(m[1]);
+  res.setHeader('Set-Cookie', 'demo_session=; Path=/; Max-Age=0');
+  res.redirect(303, '/login');
+});
+
+app.get('/', (req, res) => {
+  if (process.env.REQUIRE_LOGIN === '1' && !loggedIn(req)) {
+    res.redirect(303, '/login');
+    return;
+  }
   res.type('html').send(PAGE);
 });
+
+const LOGIN_PAGE = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in - example-compose-app</title>
+<style>
+  body { margin: 0; padding: 32px; font: 15px/1.5 system-ui, sans-serif; color: #151713; background: #f7f7f3; }
+  main { max-width: 360px; margin: 80px auto 0; background: #fff; padding: 28px; border-radius: 10px; border: 1px solid #e7e7e1; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p { margin: 0 0 18px; color: #4a4e45; }
+  label { display: block; font-size: 13px; color: #777c73; margin-bottom: 4px; }
+  input { width: 100%; box-sizing: border-box; padding: 9px 10px; font: inherit; border: 1px solid #c9c9c2; border-radius: 6px; margin-bottom: 14px; }
+  button { width: 100%; padding: 10px 16px; font: inherit; border: 0; border-radius: 6px; background: #151713; color: #fff; cursor: pointer; }
+  .error { color: #a33; font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Sign in</h1>
+  <p>Demo login for the takeover walkthrough. Any username and password work.</p>
+  <!--error-->
+  <form method="post" action="/login">
+    <label for="username">Username</label>
+    <input id="username" name="username" autocomplete="username" autofocus>
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password">
+    <button id="signin" type="submit">Sign in</button>
+  </form>
+</main>
+</body>
+</html>`;
 
 const PAGE = `<!doctype html>
 <html lang="en">
